@@ -12,7 +12,7 @@ Anthropic API when ANTHROPIC_API_KEY is set. (GitHub Models was retired on
 2026-07-30 and is no longer supported.)
 
 Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, GEMINI_API_KEY | ANTHROPIC_API_KEY
-     NICHE (default: 自媒体内容), GEMINI_MODEL (gemini-2.5-flash), POST_LIMIT (80)
+     NICHE (default: content creation), GEMINI_MODEL (gemini-2.5-flash), POST_LIMIT (80)
 """
 
 import json
@@ -24,24 +24,26 @@ import urllib.parse
 import urllib.request
 
 SUPABASE_URL = (os.environ.get("SUPABASE_URL") or "").rstrip("/")
-NICHE = os.environ.get("NICHE") or "自媒体内容"
+NICHE = os.environ.get("NICHE") or "content creation"
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
-# Google 会陆续下线旧的免费档模型(gemini-2.0-flash 已经没了)。
-# 遇到 404 就自动换下一个,不用改代码;想指定就设 GEMINI_MODEL 变量。
+# Google keeps retiring older free-tier models (gemini-2.0-flash is already gone).
+# On a 404 it switches to the next one automatically; set GEMINI_MODEL to pick one.
 GEMINI_FALLBACKS = ("gemini-2.5-flash", "gemini-3.5-flash-lite", "gemini-3.8-flash")
 _gemini_models = [GEMINI_MODEL] + [m for m in GEMINI_FALLBACKS if m != GEMINI_MODEL]
 CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-haiku-4-5-20251001")
 POST_LIMIT = int(os.environ.get("POST_LIMIT", "80"))
-FAIL_MARK = "(拆解失败)"
-SKIP_TR = ("(转录失败)", "(视频不可用)", "(无口播内容)")
+FAIL_MARK = "(breakdown failed)"
+SKIP_TR = ("(transcription failed)", "(video unavailable)", "(no speech)")
 
 SYSTEM = (
-    f"你是爆款短视频拆解专家,服务一个做「{NICHE}」业务的团队(华人市场)。"
-    "给你一条竞对爆款的资料,输出精炼拆解,严格按以下四行格式,每行不超过60字,不要任何其他文字:\n"
-    "Hook类型: <如 反常识/痛点直击/悬念/数字承诺/身份共鸣/展示成果>\n"
-    "结构: <A → B → C 形式概括>\n"
-    "为什么火: <一句话>\n"
-    f"改编角度: <给{NICHE}领域的具体改编建议,一句话>"
+    f"You are an expert at breaking down viral short videos, working for a team in the \"{NICHE}\" business "
+    "(Singapore market). You will get one viral competitor post. The post may be in Chinese or another "
+    "language, but you must write your breakdown in English only, using British spelling. "
+    "Output a tight breakdown in exactly these four lines, each line under 30 words, with no other text:\n"
+    "Hook type: <e.g. counter-intuitive / direct pain point / suspense / number promise / identity resonance / showing results>\n"
+    "Structure: <summarise as A → B → C>\n"
+    "Why it works: <one sentence>\n"
+    f"Adaptation angle: <one concrete suggestion for adapting it to {NICHE}, one sentence>"
 )
 
 
@@ -83,10 +85,10 @@ def build_prompt(p):
     if tr in SKIP_TR:
         tr = ""
     return (
-        f"账号: @{p.get('competitor', '?')}(粉丝 {p.get('followers', '?')})\n"
-        f"类型: {p.get('post_type', '?')} | 赞 {p.get('likes', '?')} | 评论 {p.get('comments', '?')}\n"
-        f"文案(caption):\n{(p.get('caption') or '')[:1200]}\n"
-        + (f"\n口播稿:\n{tr[:2500]}" if tr else "")
+        f"Account: @{p.get('competitor', '?')} (followers {p.get('followers', '?')})\n"
+        f"Type: {p.get('post_type', '?')} | Likes {p.get('likes', '?')} | Comments {p.get('comments', '?')}\n"
+        f"Caption:\n{(p.get('caption') or '')[:1200]}\n"
+        + (f"\nVideo transcript:\n{tr[:2500]}" if tr else "")
     )
 
 
@@ -95,7 +97,7 @@ def analyze_gemini(key, p):
         model = _gemini_models[0]
         cfg = {"maxOutputTokens": 1200, "temperature": 0.6}
         if model.startswith("gemini-2.5-flash"):
-            cfg["thinkingConfig"] = {"thinkingBudget": 0}  # 2.5 默认会"思考",会把输出额度吃光
+            cfg["thinkingConfig"] = {"thinkingBudget": 0}  # 2.5 "thinks" by default, which eats the whole output budget
         try:
             resp = _request(
                 f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
@@ -142,11 +144,11 @@ def main():
         provider, delay = "anthropic", 0.5
         call = lambda p: analyze_anthropic(anthropic_key, p)
     elif gemini_key:
-        provider, delay = "gemini", 6.5  # 免费档约 10 次/分钟,留点余量
+        provider, delay = "gemini", 6.5  # free tier allows about 10 calls/minute; leave some headroom
         call = lambda p: analyze_gemini(gemini_key, p)
     else:
         print("No ANTHROPIC_API_KEY or GEMINI_API_KEY — skipping (non-fatal).")
-        print("到仓库 Settings → Secrets and variables → Actions 加 GEMINI_API_KEY(Google AI Studio 免费拿)。")
+        print("Add GEMINI_API_KEY under the repo's Settings → Secrets and variables → Actions (free from Google AI Studio).")
         return
     print(f"[Provider] {provider} | [Niche] {NICHE}")
 

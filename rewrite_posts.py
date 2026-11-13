@@ -3,7 +3,7 @@
 Rewrite To My Voice — Supabase edition
 --------------------------------------
 Takes each viral post's transcript (or caption) and rewrites it into a
-ready-to-film Chinese 口播 script in the owner's brand voice (from
+ready-to-film English voiceover script in the owner's brand voice (from
 brand_voice.md), writing the result to the `my_script` column. Edit
 brand_voice.md to tune the persona/tone/red-lines — no code change needed.
 
@@ -14,7 +14,7 @@ is missing (older schema) it explains the one-line fix and exits 0 so the
 Analyze → Deploy chain keeps running.
 
 Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, GEMINI_API_KEY | ANTHROPIC_API_KEY
-     NICHE (default: 自媒体内容), GEMINI_MODEL (gemini-2.5-flash),
+     NICHE (default: content creation), GEMINI_MODEL (gemini-2.5-flash),
      POST_LIMIT (60), REWRITE_ALL (set to "1" to redo every post after
      changing brand_voice.md)
 """
@@ -29,17 +29,17 @@ import urllib.parse
 import urllib.request
 
 SUPABASE_URL = (os.environ.get("SUPABASE_URL") or "").rstrip("/")
-NICHE = os.environ.get("NICHE") or "自媒体内容"
+NICHE = os.environ.get("NICHE") or "content creation"
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
-# Google 会陆续下线旧的免费档模型(gemini-2.0-flash 已经没了)。
-# 遇到 404 就自动换下一个,不用改代码;想指定就设 GEMINI_MODEL 变量。
+# Google keeps retiring older free-tier models (gemini-2.0-flash is already gone).
+# On a 404 it switches to the next one automatically; set GEMINI_MODEL to pick one.
 GEMINI_FALLBACKS = ("gemini-2.5-flash", "gemini-3.5-flash-lite", "gemini-3.8-flash")
 _gemini_models = [GEMINI_MODEL] + [m for m in GEMINI_FALLBACKS if m != GEMINI_MODEL]
 CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-haiku-4-5-20251001")
 POST_LIMIT = int(os.environ.get("POST_LIMIT", "60"))
 REWRITE_ALL = os.environ.get("REWRITE_ALL", "").strip()  # set to redo existing (voice change)
-FAIL_MARK = "(改写失败)"
-SKIP_TR = ("(转录失败)", "(视频不可用)", "(无口播内容)")
+FAIL_MARK = "(rewrite failed)"
+SKIP_TR = ("(transcription failed)", "(video unavailable)", "(no speech)")
 
 BRAND_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "brand_voice.md")
 
@@ -49,32 +49,39 @@ def load_brand():
         txt = open(BRAND_PATH, encoding="utf-8").read()
     except Exception:
         txt = ""
-    txt = re.sub(r"<!--.*?-->", "", txt, flags=re.S)  # 示例只给人看,不喂给 AI
+    txt = re.sub(r"<!--.*?-->", "", txt, flags=re.S)  # examples are for humans only; not fed to the AI
     m = re.search(r"^## ", txt, flags=re.M)
     if m:
-        txt = txt[m.start():]                          # 开头的「怎么改」说明也不喂
+        txt = txt[m.start():]                          # the "how to edit" notes at the top are not fed either
     if "__NICHE__" in txt:
-        print(f"brand_voice.md 还没改,先按 NICHE=「{NICHE}」套通用人设。"
-              "改好文件后跑 Actions → Rewrite To My Voice(rewrite_all=1)整批重刷。")
+        print(f"brand_voice.md has not been filled in yet; using a generic persona for NICHE=\"{NICHE}\". "
+              "After editing the file, run Actions → Rewrite To My Voice (rewrite_all=1) to redo every script.")
     txt = txt.replace("__NICHE__", NICHE).strip()
     if txt:
         return txt
-    return (f"你是一名做「{NICHE}」的短视频口播创作者。"
-            "语气真诚、有画面、有落地步骤,不夸大、不承诺结果。不用 emoji、不用破折号。")
+    return (f"You are a short-video creator in \"{NICHE}\". "
+            "Your tone is sincere and vivid, with practical steps. Never exaggerate or promise results. "
+            "No emoji, no dashes.")
 
 
 def build_system():
     return (
-        "你是一名口播脚本写手。下面【人设与规矩】是你要扮演的品牌身份、语气、受众和红线,"
-        "你写的每一句都要像本人亲口说出来的,并严格遵守里面的红线。\n\n"
-        "任务:给你一条【竞对爆款短视频】的口播稿或文案(可能是英文、可能是别的领域)。"
-        "把它改写成可以直接对着镜头念的【中文口播脚本】:\n"
-        "1. 保留原爆款的钩子和结构节奏(只借结构,不抄原文字句)\n"
-        "2. 把话题、案例、场景换成【人设与规矩】里的受众痛点\n"
-        "3. 全程用【人设与规矩】的语气,红线一条都不能碰\n"
-        "4. 长度、结构和结尾照【人设与规矩】里的要求;那里没写的话,约 30-60 秒口播,开头第一句就是强钩子,结尾一句软性行动指引\n"
-        "5. 直接输出脚本正文本身,不要任何解释、标题、前后缀,不要写「以下是」或「脚本:」\n\n"
-        f"【人设与规矩】(所在领域:{NICHE})\n" + load_brand()
+        "You are a voiceover scriptwriter. The [PERSONA & RULES] below define the brand identity, voice, "
+        "audience and red lines you must follow. Every line you write must sound like this person "
+        "said it themselves, and you must strictly obey every red line.\n\n"
+        "Task: you will get the transcript or caption of one [VIRAL COMPETITOR SHORT VIDEO] "
+        "(it may be in Chinese, or from a different field). "
+        "Rewrite it into an [ENGLISH VOICEOVER SCRIPT] that can be read straight to camera:\n"
+        "1. Keep the original's hook and structure and pacing (borrow the structure only; never copy its sentences)\n"
+        "2. Swap the topic, examples and scenes for the audience pain points in [PERSONA & RULES]\n"
+        "3. Use the [PERSONA & RULES] voice throughout, and never break a red line\n"
+        "4. Follow the length, structure and ending in [PERSONA & RULES]; if none is given, write about 30-60 seconds "
+        "of voiceover, open with a strong hook, and close with one soft call to action\n"
+        "5. Write in English only, with British spelling. Never output Chinese or any other language, "
+        "even if the original post is in Chinese\n"
+        "6. Output only the script itself: no explanation, title, preface or sign-off, no \"Here is\" or \"Script:\", "
+        "and no confidence tag or notes to the writer\n\n"
+        f"[PERSONA & RULES] (field: {NICHE})\n" + load_brand()
     )
 
 
@@ -127,13 +134,13 @@ def build_prompt(p):
     if tr in SKIP_TR:
         tr = ""
     cap = (p.get("caption") or "")[:800]
-    body = (f"竞对账号: @{p.get('competitor', '?')}\n"
-            f"数据: 赞 {p.get('likes', '?')} | 评论 {p.get('comments', '?')} | 粉丝 {p.get('followers', '?')}\n")
+    body = (f"Competitor account: @{p.get('competitor', '?')}\n"
+            f"Stats: Likes {p.get('likes', '?')} | Comments {p.get('comments', '?')} | Followers {p.get('followers', '?')}\n")
     if tr:
-        body += f"\n【原视频口播稿(主要改写依据)】\n{tr[:2800]}\n"
+        body += f"\n[ORIGINAL VIDEO TRANSCRIPT (main source for the rewrite)]\n{tr[:2800]}\n"
     if cap:
-        body += f"\n【原帖文案(辅助参考)】\n{cap}\n"
-    body += "\n请按系统指令,把上面这条爆款改写成【人设与规矩】里这个人的中文口播脚本。"
+        body += f"\n[ORIGINAL CAPTION (supporting reference)]\n{cap}\n"
+    body += "\nFollowing the system instructions, rewrite the viral post above into an English voiceover script for the person in [PERSONA & RULES]."
     return body
 
 
@@ -142,7 +149,7 @@ def rewrite_gemini(key, p):
         model = _gemini_models[0]
         cfg = {"maxOutputTokens": 2000, "temperature": 0.85}
         if model.startswith("gemini-2.5-flash"):
-            cfg["thinkingConfig"] = {"thinkingBudget": 0}  # 2.5 默认会"思考",会把输出额度吃光
+            cfg["thinkingConfig"] = {"thinkingBudget": 0}  # 2.5 "thinks" by default, which eats the whole output budget
         try:
             resp = _request(
                 f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
@@ -189,11 +196,11 @@ def main():
         provider, delay = "anthropic", 0.5
         call = lambda p: rewrite_anthropic(anthropic_key, p)
     elif gemini_key:
-        provider, delay = "gemini", 6.5  # 免费档约 10 次/分钟,留点余量
+        provider, delay = "gemini", 6.5  # free tier allows about 10 calls/minute; leave some headroom
         call = lambda p: rewrite_gemini(gemini_key, p)
     else:
         print("No ANTHROPIC_API_KEY or GEMINI_API_KEY — skipping (non-fatal).")
-        print("到仓库 Settings → Secrets and variables → Actions 加 GEMINI_API_KEY(Google AI Studio 免费拿)。")
+        print("Add GEMINI_API_KEY under the repo's Settings → Secrets and variables → Actions (free from Google AI Studio).")
         return
     print(f"[Provider] {provider} | [Niche] {NICHE}" + (" | REWRITE_ALL" if REWRITE_ALL else ""))
 
@@ -204,8 +211,8 @@ def main():
         # older schema without the column: tell the student the one-line fix and
         # exit 0 so the Analyze → Deploy chain is not blocked by this bonus step
         if exc.code == 400 and ("my_script" in body or '"42703"' in body):
-            print("posts 表还没有 my_script 这一列(旧版 schema),这次跳过「我的稿」,其他步骤不受影响。")
-            print("补上只要一句:Supabase → SQL Editor → 贴这行 → Run:")
+            print("The posts table has no my_script column yet (old schema), so \"My Script\" is skipped this run; other steps are unaffected.")
+            print("To add it, run this one line in Supabase → SQL Editor:")
             print("  alter table posts add column if not exists my_script text;")
             return
         raise

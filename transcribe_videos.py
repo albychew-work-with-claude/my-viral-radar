@@ -28,7 +28,7 @@ MODEL_NAME = os.environ.get("WHISPER_MODEL", "small")
 MAX_AGE_DAYS = int(os.environ.get("MAX_AGE_DAYS", "14"))
 VIDEO_LIMIT = int(os.environ.get("VIDEO_LIMIT", "40"))
 TIME_BUDGET_MIN = int(os.environ.get("TIME_BUDGET_MIN", "300"))
-FAIL_MARK = "(转录失败)"
+FAIL_MARK = "(transcription failed)"
 MAX_CHARS = 5000
 
 
@@ -106,7 +106,7 @@ def main():
                 tmp_path = f.name
             download(it["video_url"], tmp_path)
             result = model.transcribe(tmp_path, fp16=False)
-            text = (result.get("text") or "").strip() or "(无口播内容)"
+            text = (result.get("text") or "").strip() or "(no speech)"
         except urllib.error.HTTPError as exc:
             gone = exc.code in (401, 403, 404, 410)
             print(f"  {'GONE' if gone else 'TRANSIENT'}: HTTP {exc.code}")

@@ -22,12 +22,12 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}         # 免费:Google AI Studio 拿
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}   # 可选,设了就优先用 Claude
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}         # free: get it from Google AI Studio
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}   # optional: if set, Claude is used first
           NICHE: ${{ vars.NICHE }}
         run: python analyze_posts.py
-      # 「我的稿」:按 brand_voice.md 把新帖改写成自己语气的口播稿。
-      # 这是加分项,失败(比如额度用完)也不能挡住后面的网页生成,所以 continue-on-error。
+      # "My Script": rewrites new posts into a voiceover script in my voice, using brand_voice.md.
+      # This is a bonus step; if it fails (e.g. quota used up) it must not block the dashboard build, hence continue-on-error.
       - name: Rewrite to my voice (new posts only)
         continue-on-error: true
         env:

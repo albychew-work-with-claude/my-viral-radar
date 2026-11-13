@@ -2,7 +2,7 @@ name: Sync Content
 
 on:
   schedule:
-    # 默认:每周一 11:00 大马时间(UTC 03:00)。想改时间就编辑这一行的 cron。
+    # Default: every Monday 11:00 Singapore time (UTC 03:00). Edit the cron on this line to change it.
     - cron: "0 3 * * 1"
   workflow_dispatch:
 

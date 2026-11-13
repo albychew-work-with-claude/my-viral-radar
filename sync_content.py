@@ -48,7 +48,7 @@ SUPABASE_URL = (os.environ.get("SUPABASE_URL") or "").rstrip("/")
 
 POLL_INTERVAL = 30
 POLL_TIMEOUT = 900
-PROTECTED = ("拍摄中", "已处理")
+PROTECTED = ("Filming", "Done")
 
 
 def _envf(name, default):
@@ -149,13 +149,13 @@ def suggest_competitors(profile_items):
         print("[Suggest] no new related profiles this run")
         return
     # clear old un-adopted suggestions for this tracker
-    pat = urllib.parse.quote("系统推荐*")
+    pat = urllib.parse.quote("Auto-suggested*")
     sb(f"competitors?tracker=eq.{TRACKER}&active=is.false&notes=like.{pat}",
        method="DELETE", prefer="return=minimal")
     today = datetime.now(timezone.utc).date().isoformat()
     sb("competitors", method="POST", prefer="return=minimal", data=[
         {"username": u, "tracker": TRACKER, "active": False,
-         "notes": f"系统推荐 {today}(相关度 {n})— 觉得好就把 active 打勾"}
+         "notes": f"Auto-suggested {today} (relevance {n}) — tick active if you like it"}
         for u, n in top
     ])
     print(f"[Suggest] refreshed shortlist: {', '.join(u for u, _ in top)}")
@@ -262,7 +262,7 @@ def to_rows(posts, followers_map, today):
         })
 
     rows, below_total, rescued_total = [], 0, 0
-    print(f"  {'账号':<24}{'抓到':>5}{'入选':>5}{'补位':>5}  基准/中位互动")
+    print(f"  {'Account':<24}{'Got':>5}{'Kept':>5}{'Fill':>5}  Median engagement")
     for u in sorted(by_comp):
         recs = by_comp[u]
         engs = [r["eng"] for r in recs]
@@ -297,18 +297,18 @@ def to_rows(posts, followers_map, today):
         below_total += len(recs) - passed
         rescued_total += rescued
         rows.extend(r["row"] for r in kept)
-        note = f" · 超额截掉 {capped}" if capped else ""
+        note = f" · {capped} cut (over cap)" if capped else ""
         print(f"  @{u:<23}{len(recs):>5}{len(kept):>5}{rescued:>5}  "
-              f"中位 {int(med)} 互动 · {recs[0]['row']['followers']:,} 粉{note}")
+              f"median {int(med)} engagement · {recs[0]['row']['followers']:,} followers{note}")
 
-    print(f"  ── 合计 {len(rows)} 条入库 "
-          f"({len(rows) - rescued_total} 达标 + {rescued_total} 补位) | "
-          f"{below_total} 条未达标 | {nofol} 条缺粉丝数 | {broken} 条抓取失败")
+    print(f"  ── Total {len(rows)} saved "
+          f"({len(rows) - rescued_total} passed + {rescued_total} filled in) | "
+          f"{below_total} below threshold | {nofol} missing follower count | {broken} failed to scrape")
     if len(rows) < 20:
-        print("  提示: 内容偏少。到仓库 Settings → Variables 调松阈值，例如")
+        print("  Tip: not much content. Loosen the thresholds under the repo's Settings → Variables, e.g.")
         print("        MIN_ER=0.01  MIN_COMMENTS=8  OUTLIER_X=1.2  TOP_N_PER_COMP=5")
-        print("        想要每个账号更多条 → 调大 MAX_PER_COMP")
-        print("        或在 Supabase 的 competitors 表多加几个竞对账号。")
+        print("        For more posts per account → raise MAX_PER_COMP")
+        print("        Or add more competitor accounts to the competitors table in Supabase.")
     return rows
 
 
@@ -387,7 +387,7 @@ def main():
         # An IG 403 usually means the CDN signature expired, not that the video
         # is gone. This sync just refreshed those URLs — clear the fail marks so
         # transcription gets another shot with the fresh links.
-        mark = urllib.parse.quote("(转录失败)")
+        mark = urllib.parse.quote("(transcription failed)")
         sb(f"posts?transcript=eq.{mark}&last_synced=eq.{today}",
            method="PATCH", data={"transcript": None}, prefer="return=minimal")
         print("[Upsert] reopened previously-failed transcripts with fresh URLs")

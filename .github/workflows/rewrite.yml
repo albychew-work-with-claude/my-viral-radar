@@ -1,12 +1,12 @@
 name: Rewrite To My Voice
 
-# 手动重跑「我的稿」。平时不用点 —— 每周 Analyze Posts 跑完会自动补新帖。
-# 什么时候来点:改了 brand_voice.md(换语气/人设),想把已经生成的稿子整批重刷。
+# Manually re-run "My Script". Not needed normally: the weekly Analyze Posts run fills in new posts.
+# When to use it: after editing brand_voice.md (new voice/persona), to redo every script already generated.
 on:
   workflow_dispatch:
     inputs:
       rewrite_all:
-        description: "改了 brand_voice.md 想整批重刷?填 1(留空 = 只补还没有稿的新帖)"
+        description: "Edited brand_voice.md and want to redo all scripts? Enter 1 (leave blank = only new posts without a script)"
         required: false
         default: ""
 
@@ -25,8 +25,8 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}         # 免费:Google AI Studio 拿
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}   # 可选,设了就优先用 Claude
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}         # free: get it from Google AI Studio
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}   # optional: if set, Claude is used first
           NICHE: ${{ vars.NICHE }}
           REWRITE_ALL: ${{ inputs.rewrite_all }}
         run: python rewrite_posts.py
