@@ -547,7 +547,7 @@ function card(d, idx) {
       </div>
       <div class="nums">
         <span class="num hot" title="Viral Score">${I('flame')}<b>${d.score}</b></span>
-        ${(d.x || 0) >= 2 ? '<span class="num x" title="How many times this account's own average">' + I('trend') + '<b>×' + d.x + '</b></span>' : ''}
+        ${(d.x || 0) >= 2 ? '<span class="num x" title="How many times this account’s own average">' + I('trend') + '<b>×' + d.x + '</b></span>' : ''}
         <span class="num er" title="Engagement Rate">${I('pct')}<b>${d.er}%</b></span>
         <span class="num" title="Likes">${I('heart')}<b>${d.likes > 0 ? fmt(d.likes) : 'hidden'}</b></span>
         <span class="num" title="Comments">${I('msg')}<b>${fmt(d.comments)}</b></span>
